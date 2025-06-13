@@ -1,34 +1,24 @@
 import { NextResponse } from 'next/server';
-import { handleGeminiResponse } from '@/lib/llm/gemini';
-import { handleOpenAIResponse } from '@/lib/llm/gpt';
 
-const modelHandlers: Record<string, (chat: any) => Promise<string | undefined>> = {
-  "Gemini": handleGeminiResponse,
-  "GPT-4": handleOpenAIResponse,
-  // Add more models easily:
-  // "Claude": handleClaudeResponse,
-  // "Llama": handleLlamaResponse,
-};
+
 
 export async function POST(req: Request) {
 
+
     try{
         const body = await req.json();
-        const { chat, llm } = body;
-
-        const handler = modelHandlers[llm];
         
-        let result: string;
-        if (handler) {
-            result = await handler(chat) ?? `No response from ${llm}`;
-        } else {
-            result = `❌ Unsupported model: ${llm}. Available models: ${Object.keys(modelHandlers).join(", ")}`;
-        }
+        const result=await fetch("http://localhost:3001/api/chat",{
+            method:"POST",
+            headers:{
+                "Content-Type": "application/json",
+            },
+            body:JSON.stringify(body),
+        });
 
-        return NextResponse.json({
-            chat: result,
-            role: "assistant",
-        })
+        const data = await result.json();
+
+        return NextResponse.json(data);
 
     }catch(err){
         console.error(err);
