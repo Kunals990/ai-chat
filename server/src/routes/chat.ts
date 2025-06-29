@@ -1,54 +1,57 @@
-// routes/chat.ts
 import { Router, Request, Response } from "express";
 import { handleGeminiResponse } from "../llms/gemini";
 import { handleOpenAIResponse } from "../llms/gpt";
-import { resolve } from "path";
-import pool from "../db";
+import prisma from "./prisma";
 
 const router = Router();
 
-const modelHandlers: Record<string, (chat: any) => Promise<string | undefined>> = {
+
+const modelHandlers: Record<string, (chat: string) => Promise<string | undefined>> = {
   "Gemini": handleGeminiResponse,
   "GPT-4": handleOpenAIResponse,
-  // Add more models easily:
-  // "Claude": handleClaudeResponse,
-  // "Llama": handleLlamaResponse,
 };
 
+//add new session
+
 router.post("/", async (req: Request, res: Response): Promise<void> => {
-    try{
-        const { chat, llm } = req.body;
-        const handler = modelHandlers[llm];
+  try {
+    const { chat, llm, sessionId } = req.body;
+    const handler = modelHandlers[llm];
 
-        let result: string;
-        if(handler){
-            result = await handler(chat) ?? `No response from ${llm}`;
-        }
-        else{
-            result = `Unsupported model`;
-        }
-        await pool.query(
-            "INSERT INTO chats (role, message, llm) VALUES ($1, $2, $3)",
-            ["user", chat, llm]
-            );
-        await pool.query(
-            "INSERT INTO chats (role, message, llm) VALUES ($1, $2, $3)",
-            ["assistant", result, llm]
-            );
-
-        res.json({chat:result,role:"assistant"});
-
-    }catch(err){
-        console.error(err);
-        res.json({chat:"Something went wrong",role:"assistant"})
+    if (!sessionId) {
+      res.status(400).json({ chat: "Missing sessionId", role: "system" });
+      return;
     }
-  
-});
 
+    const response = handler ? await handler(chat) ?? "No response" : "Unsupported LLM";
 
-router.get("/test", async (req, res) => {
-  const result = await pool.query("SELECT NOW()");
-  res.json(result.rows);
+    // Store user message
+    await prisma.chat.create({
+      data: {
+        role: "user",
+        message: chat,
+        llm,
+        sessionId,
+      },
+    });
+
+    // Store assistant message
+    await prisma.chat.create({
+      data: {
+        role: "assistant",
+        message: response,
+        llm,
+        sessionId,
+      },
+    });
+
+    res.json({ chat: response, role: "assistant" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ chat: "Internal Server Error", role: "system" });
+  }
 });
 
 export default router;
+
