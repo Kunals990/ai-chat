@@ -1,5 +1,5 @@
 "use client"
-import React, { ReactEventHandler, useState } from 'react'
+import React, { useState } from 'react'
 
 interface Chat{
     chat:string,
@@ -41,6 +41,8 @@ const ChatInput = () => {
             ...prev,
             { chat: "❌ Error talking to the model.", role: "assistant" },
             ]);
+            console.error(err);
+            
         } finally {
             setLoading(false); // Stop loading
         }
